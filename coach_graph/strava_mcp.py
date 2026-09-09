@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -15,10 +16,14 @@ from urllib.parse import parse_qs, urlparse
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from mcp.client.auth import OAuthClientProvider, TokenStorage
+from mcp.client.auth import oauth2
+from mcp.client.auth.exceptions import OAuthFlowError
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
 from pydantic import AnyUrl
 
 from coach_graph import config
+
+logger = logging.getLogger(__name__)
 
 _SUCCESS_PAGE = b"""<html><body style="font-family:system-ui;padding:3rem">
 <h2>Strava connected.</h2><p>You can close this tab and return to your terminal.</p>
@@ -92,7 +97,43 @@ async def _wait_for_callback() -> tuple[str, str | None]:
     )
 
 
+def _origin(issuer: str) -> tuple[str, str]:
+    parsed = urlparse(issuer)
+    return parsed.scheme, parsed.netloc
+
+
+def allow_same_origin_issuer_mismatch() -> None:
+    """Work around non-conformant issuer metadata on Strava's authorization server.
+
+    Strava's metadata document names its issuer ``https://www.strava.com/`` but is
+    discovered under ``https://www.strava.com/mcp-issuer``. RFC 8414 section 3.3 requires
+    those to match exactly and the MCP SDK enforces it, so the handshake fails before the
+    browser ever opens. Tolerate the mismatch only when both names share an origin, which
+    keeps the property that actually matters: metadata cannot hand the flow to another host.
+    """
+    original = oauth2.validate_metadata_issuer
+    if getattr(original, "_tolerates_same_origin", False):
+        return
+
+    def validate(metadata, expected_issuer: str) -> None:
+        try:
+            original(metadata, expected_issuer)
+        except OAuthFlowError:
+            if _origin(str(metadata.issuer)) != _origin(expected_issuer):
+                raise
+            logger.warning(
+                "Authorization server metadata declares issuer %s but was discovered as %s; "
+                "accepting because both are the same origin.",
+                metadata.issuer,
+                expected_issuer,
+            )
+
+    validate._tolerates_same_origin = True
+    oauth2.validate_metadata_issuer = validate
+
+
 def build_auth() -> OAuthClientProvider:
+    allow_same_origin_issuer_mismatch()
     return OAuthClientProvider(
         server_url=config.STRAVA_MCP_URL,
         client_metadata=OAuthClientMetadata(

@@ -87,5 +87,9 @@ tests can't cover — `coach connect` is the check for it.
 ## Notes
 
 - The Strava connector is **read-only**: the coach can't upload or edit activities.
+- Strava's authorization server declares its issuer as `https://www.strava.com/` while being
+  discovered under `https://www.strava.com/mcp-issuer`. RFC 8414 requires those to match and
+  the MCP SDK enforces it, so `strava_mcp.allow_same_origin_issuer_mismatch()` relaxes the
+  check to same-origin comparison. Drop it once Strava fixes the metadata.
 - Swapping models is a one-line change in `config.py::chat_model`; everything else
   is provider-agnostic LangChain.

@@ -28,8 +28,9 @@ async def _connect() -> list:
             exc = exc.exceptions[0]
         console.print(f"[red]Could not reach {config.STRAVA_MCP_URL}[/red]\n[dim]{exc!r}[/dim]")
         console.print(
-            "\nThe connector needs an active Strava subscription. To re-authorize, "
-            f"delete [cyan]{config.TOKEN_PATH}[/cyan] and run [cyan]coach connect[/cyan] again."
+            "\nCommon causes: the connector requires an active Strava subscription, and stale "
+            f"credentials survive a revoked authorization — delete [cyan]{config.TOKEN_PATH}[/cyan] "
+            "and run [cyan]coach connect[/cyan] again to start the flow from scratch."
         )
         raise SystemExit(1)
     console.print(f"[green]Connected to Strava[/green] [dim]({len(tools)} tools)[/dim]")
