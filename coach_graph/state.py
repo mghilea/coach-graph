@@ -16,3 +16,4 @@ class CoachState(TypedDict, total=False):
     needs_data: bool
     data_request: str
     strava_findings: str
+    profile_changes: dict

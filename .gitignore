@@ -5,6 +5,5 @@ __pycache__/
 .pytest_cache/
 
 # personal training data
-data/profile.yaml
-data/plans/
+data/
 *.sqlite

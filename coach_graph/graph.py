@@ -1,7 +1,7 @@
 """Assembles the multi-agent graph.
 
-    supervisor ─┬─► strava_data ─┬─► coach ──► END
-                │                └─► planner ─► END
+    supervisor ─┬─► strava_data ─┬─► coach ───┬─► profiler ─► END
+                │                └─► planner ─┘
                 └────────────────────┘
 """
 
@@ -13,6 +13,7 @@ from langgraph.graph import END, START, StateGraph
 
 from coach_graph.agents.coach import build_coach_node
 from coach_graph.agents.planner import build_planner_node
+from coach_graph.agents.profiler import build_profiler_node
 from coach_graph.agents.strava import build_strava_node
 from coach_graph.agents.supervisor import build_supervisor
 from coach_graph.state import CoachState
@@ -34,11 +35,15 @@ def build_graph(
     graph.add_node("strava_data", build_strava_node(tools))
     graph.add_node("coach", build_coach_node())
     graph.add_node("planner", build_planner_node())
+    graph.add_node("profiler", build_profiler_node())
 
     graph.add_edge(START, "supervisor")
     graph.add_conditional_edges("supervisor", _after_supervisor, ["strava_data", "coach", "planner"])
     graph.add_conditional_edges("strava_data", _after_data, ["coach", "planner"])
-    graph.add_edge("coach", END)
-    graph.add_edge("planner", END)
+    # The profiler learns from the athlete's own words, so it runs once the answer
+    # exists rather than in front of it.
+    graph.add_edge("coach", "profiler")
+    graph.add_edge("planner", "profiler")
+    graph.add_edge("profiler", END)
 
     return graph.compile(checkpointer=checkpointer)
